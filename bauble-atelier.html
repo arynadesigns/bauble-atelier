@@ -58,6 +58,8 @@ html, body { height: 100%; }
 body { background: var(--background); color: var(--foreground); font-family: var(--font-body); letter-spacing: var(--tracking-body); line-height: var(--leading-body); overflow: hidden; }
 :focus:not(:focus-visible), [role="menuitem"]:focus, [role="menuitemradio"]:focus, [role="menuitemcheckbox"]:focus, [tabindex="-1"]:focus, input[type="text"]:focus { outline: none !important; }
 :focus-visible:not([role^="menuitem"], [tabindex="-1"], input[type="text"]) { outline: 2px solid color-mix(in oklab, var(--accent-strong) 72%, transparent) !important; outline-offset: 2px !important; }
+/* the focus ring is for keyboard use only: hidden after a mouse or touch press until a key is used again */
+html[data-pointer] :focus-visible { outline: none !important; }
 
 .stage { position: fixed; inset: 0; overflow: hidden; background: var(--background); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
@@ -71,22 +73,27 @@ body { background: var(--background); color: var(--foreground); font-family: var
 @media (max-width: 1180px) { .credit { bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 70px); } }  /* keeps clear of the toolbar when the screen is narrower */
 .credit a { color: inherit; }
 
-/* Floating toolbar (a layer that floats, so it carries --shadow-floating) */
+/* Liquid-glass navigation: the toolbar and popovers share a softly refracting
+   surface, while the controls remain crisp enough to use over the 3D scene. */
 .toolbar {
   position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); bottom: max(20px, env(safe-area-inset-bottom, 0px));
   display: flex; gap: 4px; max-width: calc(100vw - 24px); box-sizing: border-box; padding: 6px;
-  border: 1px solid var(--border); border-radius: var(--radius-surface); background: color-mix(in oklab, var(--surface-raised) 88%, transparent);
-  box-shadow: var(--shadow-floating); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  isolation: isolate; overflow: hidden; border: 1px solid color-mix(in oklab, white 58%, var(--border)); border-radius: var(--radius-surface);
+  background: linear-gradient(135deg, color-mix(in oklab, white 42%, transparent), color-mix(in oklab, var(--surface-raised) 45%, transparent) 52%, color-mix(in oklab, white 22%, transparent));
+  box-shadow: 0 20px 48px oklch(0% 0 0 / .14), inset 0 1px 0 rgb(255 255 255 / .64), inset 0 -1px 0 rgb(255 255 255 / .16);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35); backdrop-filter: blur(22px) saturate(1.35);
 }
+.toolbar::before { content: ""; position: absolute; z-index: -1; inset: 0; pointer-events: none; opacity: .58; background: radial-gradient(110% 135% at 8% -22%, rgb(255 255 255 / .9), transparent 42%), radial-gradient(70% 140% at 103% 116%, rgb(255 255 255 / .35), transparent 63%); }
 /* Arc dropdown trigger */
 .trigger {
   display: inline-flex; max-width: 100%; min-width: 0; min-height: var(--control-height-md); align-items: center; gap: 6px; padding: 0 10px;
-  border: 1px solid var(--border); border-radius: calc(var(--radius-surface) - 6px); background: var(--surface); color: var(--foreground); font: inherit; font-size: var(--text-sm); font-weight: 500; cursor: pointer;
-  transition: background-color var(--duration-instant) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+  border: 1px solid rgb(255 255 255 / .36); border-radius: calc(var(--radius-surface) - 6px); background: rgb(255 255 255 / .16); color: var(--foreground); font: inherit; font-size: var(--text-sm); font-weight: 500; cursor: pointer;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .36), inset 0 -1px 0 rgb(0 0 0 / .035); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  transition: background-color var(--duration-instant) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
-@media (hover: hover) and (pointer: fine) { .trigger:hover { border-color: var(--border-strong); background: var(--surface-muted); box-shadow: var(--shadow-resting); } }
-.trigger[data-state="open"] { border-color: var(--border-strong); background: var(--surface-muted); box-shadow: none; }
-.trigger:active { border-color: var(--border-strong); background: color-mix(in oklab, var(--surface-muted), var(--border) 55%); box-shadow: none; }
+@media (hover: hover) and (pointer: fine) { .trigger:hover { border-color: rgb(255 255 255 / .72); background: rgb(255 255 255 / .34); box-shadow: 0 8px 18px oklch(0% 0 0 / .1), inset 0 1px 0 rgb(255 255 255 / .64); transform: translateY(-1px); } }
+.trigger[data-state="open"] { border-color: rgb(255 255 255 / .74); background: rgb(255 255 255 / .42); box-shadow: inset 0 1px 0 rgb(255 255 255 / .76), 0 4px 12px oklch(0% 0 0 / .06); }
+.trigger:active { transform: translateY(0) scale(.97); background: rgb(255 255 255 / .28); box-shadow: inset 0 1px 4px oklch(0% 0 0 / .08); }
 .triggerIcon { display: inline-flex; flex: none; color: var(--text-secondary); }
 .trigger .label { display: none !important; position: relative; min-width: 0; overflow-x: clip; transition: width 300ms var(--ease-spring); }
 .trigger .label > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -101,15 +108,55 @@ body { background: var(--background); color: var(--foreground); font-family: var
 /* Arc dropdown menu, opening upward (data-side="top") */
 .menu {
   --menu-y: 5px; position: fixed; z-index: 60; min-width: 12rem; max-width: calc(100vw - 24px); max-height: calc(100vh - 140px); overflow: auto; box-sizing: border-box; padding: 5px;
-  border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--surface-raised); box-shadow: var(--shadow-floating);
+  border: 1px solid color-mix(in oklab, white 55%, var(--border)); border-radius: var(--radius-panel); background: linear-gradient(145deg, color-mix(in oklab, var(--surface-raised) 74%, transparent), color-mix(in oklab, var(--surface-muted) 56%, transparent)); box-shadow: 0 24px 56px oklch(0% 0 0 / .17), inset 0 1px 0 rgb(255 255 255 / .68); -webkit-backdrop-filter: blur(26px) saturate(1.3); backdrop-filter: blur(26px) saturate(1.3);
   transform-origin: 50% 100%; overscroll-behavior: contain;
   transition: opacity var(--duration-fast) var(--ease-enter), transform var(--duration-spring) var(--ease-spring);
 }
 .menu[data-state="opening"] { opacity: 0; transform: translateY(var(--menu-y)) scale(.97); transition: none; }
 .menu[data-state="opening"] .item { opacity: 0; transform: translateY(calc(var(--menu-y) * .4)); transition: none; }
 .menu[data-state="closed"] { opacity: 0; transform: translateY(calc(var(--menu-y) * .5)) scale(.985); transition: opacity var(--duration-instant) var(--ease-standard), transform var(--duration-instant) var(--ease-standard); pointer-events: none; }
-.highlight { position: absolute; top: 0; right: 5px; left: 5px; height: 36px; border-radius: calc(var(--radius-panel) - 6px); background: var(--surface-muted); opacity: 0; pointer-events: none; transition: opacity var(--duration-instant) linear; }
+.highlight { position: absolute; top: 0; right: 5px; left: 5px; height: 36px; border: 1px solid rgb(255 255 255 / .42); border-radius: calc(var(--radius-panel) - 6px); background: rgb(255 255 255 / .3); box-shadow: inset 0 1px 0 rgb(255 255 255 / .44); opacity: 0; pointer-events: none; transition: opacity var(--duration-instant) linear; }
 .highlight[data-glide] { transition: transform 300ms var(--ease-spring), height 300ms var(--ease-spring), opacity var(--duration-instant) linear; }
+/* Liquid glass menus, after liquid-glass-interface's dropdown: a clear, colour-boosted lens with a bright rim and sheen.
+   It springs open from its button with a slight overshoot, a soft white light washes across it, and each item glows as it arrives.
+   The glass itself sits on ::before, which keeps its rounded corners even while the panel is still growing. */
+.menu {
+  --ease-goo: linear(0, .09 2.2%, .34 6%, .7 11%, 1.02 17%, 1.14 22%, 1.13 27%, 1.06 33%, .99 41%, .98 48%, 1.005 60%, 1);
+  padding: 6px; border-radius: 24px; isolation: isolate; background: none !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  border: 1px solid transparent !important; box-shadow: none !important; opacity: 1 !important;   /* never partly transparent, so the blur behind keeps working */
+}
+.menu::before { content: ""; position: absolute; z-index: -1; inset: -1px; border-radius: inherit; pointer-events: none; opacity: 0;
+  border: 1px solid color-mix(in oklab, white 62%, transparent);
+  box-shadow: 0 20px 48px oklch(0% 0 0 / .12), 0 3px 10px oklch(0% 0 0 / .05),
+    inset 0 1.5px 0 rgb(255 255 255 / .85), inset 0 -1px 0 rgb(255 255 255 / .3), inset 1px 0 0 rgb(255 255 255 / .32), inset -1px 0 0 rgb(255 255 255 / .18), inset 0 0 26px rgb(255 255 255 / .16);
+  background:
+    radial-gradient(120% 60% at 28% -12%, rgb(255 255 255 / .5), transparent 56%),
+    radial-gradient(90% 55% at 104% 112%, rgb(255 255 255 / .22), transparent 62%),
+    linear-gradient(180deg, rgb(255 255 255 / .14), transparent 30%),
+    linear-gradient(160deg, color-mix(in oklab, var(--surface-raised) 58%, transparent), color-mix(in oklab, var(--surface-raised) 26%, transparent) 55%, color-mix(in oklab, var(--surface-raised) 40%, transparent));
+  -webkit-backdrop-filter: blur(9px) saturate(1.9) brightness(1.06) contrast(1.04); backdrop-filter: blur(9px) saturate(1.9) brightness(1.06) contrast(1.04); }
+.menu[data-state="opening"] { transform: translateY(4px) scale(.985); transition: none; }
+.menu[data-state="opening"]::before { opacity: 0; transition: none; }
+.menu[data-state="open"]::before { opacity: 1; transition: opacity 380ms cubic-bezier(.3, 0, .2, 1); }
+.menu[data-state="closed"]::before { opacity: 0; transition: opacity 200ms ease; }
+.menu[data-state="closed"] .item, .menu[data-state="closed"] .menu-section, .menu[data-state="closed"] .menu-note, .menu[data-state="closed"] .highlight, .menu[data-state="closed"] .cp-row, .menu[data-state="closed"] .separator { opacity: 0; transition: opacity 150ms ease; }
+.menu[data-state="opening"] .menu-section, .menu[data-state="opening"] .menu-note, .menu[data-state="opening"] .separator { opacity: 0; }
+.menu[data-state="open"] .menu-section, .menu[data-state="open"] .menu-note, .menu[data-state="open"] .separator { transition: opacity 280ms ease 120ms; }
+.menu[data-state="opening"] .item { opacity: 0; transform: translateY(6px); }
+.menu[data-state="open"] { transition: transform 600ms cubic-bezier(.3, 0, .2, 1); }
+.menu[data-state="open"] .item { transition: color var(--duration-fast) var(--ease-standard), opacity 240ms ease calc(20ms + min(var(--i, 0), 14) * 42ms), transform 320ms cubic-bezier(.3, 0, .2, 1) calc(20ms + min(var(--i, 0), 14) * 42ms); }
+/* the five colour pickers arrive one after another, like the materials */
+.menu[data-state="opening"] .cp-trigger { opacity: 0; transform: translateY(6px); }
+.menu[data-state="open"] .cp-trigger { transition: border-color var(--duration-fast) var(--ease-standard), opacity 240ms ease calc(20ms + min(var(--i, 0), 14) * 42ms), transform 320ms cubic-bezier(.3, 0, .2, 1) calc(20ms + min(var(--i, 0), 14) * 42ms); }
+.menu[data-state="closed"] { transform: translateY(3px) scale(.99); transition: transform 220ms ease; pointer-events: none; }
+/* the gooey white glow: a blob that grows out of the button, stays joined to it by a soft neck, and fades as the menu appears inside it */
+.goo { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0;
+  filter: url(#lgGoo) drop-shadow(0 0 22px rgb(255 255 255 / .95)) drop-shadow(0 0 7px rgb(255 255 255 / .85)); }
+.goo-shape { position: absolute; background: #fff; border-radius: 20px; }
+.menu .item { min-height: 40px; border-radius: 18px; }
+.menu .item.tile { width: 44px; height: 44px; min-height: 0; border-radius: 16px; }
+.menu .highlight { border-radius: 18px; background: color-mix(in oklab, var(--foreground) 9%, transparent); border-color: rgb(255 255 255 / .38); }
 .item {
   position: relative; display: flex; width: 100%; min-height: 36px; align-items: center; gap: 10px; padding: 0 11px; box-sizing: border-box; border: 0; background: none;
   border-radius: calc(var(--radius-panel) - 6px); color: var(--foreground); font: inherit; font-size: var(--text-sm); text-align: start; cursor: pointer; outline: none;
@@ -129,7 +176,7 @@ body { background: var(--background); color: var(--foreground); font-family: var
 .separator { height: 1px; margin: var(--space-1) calc(var(--space-1) * -1); background: var(--border-subtle); }
 .menu-section { padding: 8px 11px 10px; }
 .menu-note { margin: 0; padding: 4px 11px 8px; font-size: var(--text-xs); color: var(--text-muted); }
-@media (prefers-reduced-transparency: reduce) { .toolbar { background: var(--surface-raised); backdrop-filter: none; -webkit-backdrop-filter: none; } }
+@media (prefers-reduced-transparency: reduce) { .toolbar, .menu { background: var(--surface-raised); backdrop-filter: none; -webkit-backdrop-filter: none; } .trigger { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; } }
 
 /* Arc slider */
 .slider { --slider-thumb: 22px; --slider-track: 6px; display: grid; width: 100%; min-width: 0; color: var(--foreground); font-size: var(--text-sm); user-select: none; -webkit-user-select: none; }
@@ -240,7 +287,9 @@ body { background: var(--background); color: var(--foreground); font-family: var
 }
 @media (prefers-reduced-motion: reduce) {
   .trigger, .chevron, .item, .highlight, .ink-layer svg, .ink-sweep, .trigger.surprise .triggerIcon, .slider .thumb, .slider .bubble, .roll .col > span, .cp-thumb, .cp-panel, .cp-swatch .chip, .icon-btn, .hint { transition: none !important; animation: none !important; }
-  .menu, .menu[data-state="closed"] { transform: none !important; transition: opacity var(--duration-instant) linear; }
+  .menu, .menu[data-state="closed"], .menu[data-state="opening"] { transform: none !important; transition: opacity var(--duration-instant) linear; }
+  .menu[data-state="open"] .item { transition: none; }
+  .goo { display: none; }
   .trigger .label .in { animation: none; }
 }
 </style>
@@ -1348,6 +1397,34 @@ const savedSwatches = PRESET_SWATCHES.slice();
 
 /* ---------- Arc dropdown menu (opens upward from its trigger, one highlight glides between items) ---------- */
 let openMenu = null;
+// gooey glow (after liquid-glass-interface): two white shapes, the button and the panel, merged by an SVG blur + alpha threshold
+// a soft spring like the original's open (omega 11, damping 1): settles with only a hint of overshoot
+const GOO_EASE = 'linear(0, .06 3%, .22 8%, .45 14%, .67 21%, .84 28%, .95 36%, 1.01 45%, 1.03 54%, 1.02 66%, 1.005 80%, 1)';
+const goo = (() => {
+  const NS = 'http://www.w3.org/2000/svg', svgEl = document.createElementNS(NS, 'svg');
+  svgEl.setAttribute('width', '0'); svgEl.setAttribute('height', '0'); svgEl.setAttribute('aria-hidden', 'true'); svgEl.style.position = 'absolute';
+  svgEl.innerHTML = '<defs><filter id="lgGoo" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="10" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 26 -11"/></filter></defs>';
+  document.body.append(svgEl);
+  const wrap = el('div', 'goo', { 'aria-hidden': 'true' }), a = el('div', 'goo-shape'), b = el('div', 'goo-shape'); wrap.append(a, b);
+  document.querySelector('.stage').append(wrap);
+  let ease = GOO_EASE; try { b.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 1, easing: GOO_EASE }).cancel(); } catch (e) { ease = 'cubic-bezier(.34, 1.56, .64, 1)'; }
+  return { wrap, a, b, ease };
+})();
+function gooPlay(r, m, opening) {
+  if (reducedMotion()) return 0;
+  const box = (x, rad) => ({ left: x.left + 'px', top: x.top + 'px', width: x.width + 'px', height: x.height + 'px', borderRadius: rad + 'px' });
+  Object.assign(goo.a.style, box(r, Math.min(r.height / 2, 20)));
+  const from = box(r, Math.min(r.height / 2, 20)), to = box(m, 24), dur = opening ? 760 : 340;
+  const now = parseFloat(getComputedStyle(goo.wrap).opacity) || 0;   // continue from wherever the glow is, never jump
+  goo.b.getAnimations().forEach(x => x.cancel()); goo.wrap.getAnimations().forEach(x => x.cancel());
+  goo.b.animate(opening ? [from, to] : [to, from], { duration: dur, easing: opening ? goo.ease : 'cubic-bezier(.4, 0, .7, .2)', fill: 'forwards' });
+  // the glow rises quickly, holds while the panel grows, then fades out slowly, easing off at the end
+  goo.wrap.animate(opening
+    ? [{ opacity: now }, { opacity: 1, offset: .06 }, { opacity: 1, offset: .42, easing: 'cubic-bezier(.3, 0, .2, 1)' }, { opacity: 0 }]
+    : [{ opacity: now }, { opacity: .9, offset: .25 }, { opacity: .9, offset: .6, easing: 'cubic-bezier(.3, 0, .2, 1)' }, { opacity: 0 }],
+    { duration: opening ? 1500 : 520, fill: 'forwards' });
+  return opening ? 30 : 0;
+}
 function Trigger({ icon, aria, build, label }) {
   const labelOuter = el('span', 'label'); const labelInner = el('span', 'in');
   labelOuter.append(labelInner);
@@ -1380,9 +1457,10 @@ function showMenu(btn, build, keyboard) {
   const left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left + r.width / 2 - w / 2));
   menu.style.left = left + 'px'; menu.style.bottom = (window.innerHeight - r.top + 6) + 'px';
   menu.style.transformOrigin = `${r.left + r.width / 2 - left}px 100%`;
-  [...menu.querySelectorAll('.item')].forEach((it, i) => it.style.setProperty('--i', i));
+  [...menu.querySelectorAll('.item, .cp-trigger')].forEach((it, i) => it.style.setProperty('--i', i));
   btn.setAttribute('data-state', 'open'); btn.setAttribute('aria-expanded', 'true');
-  requestAnimationFrame(() => requestAnimationFrame(() => menu.setAttribute('data-state', 'open')));
+  const reveal = gooPlay(r, menu.getBoundingClientRect(), true);   // the white blob grows out of the button first, then the menu appears inside it
+  setTimeout(() => { if (menu.isConnected && menu.getAttribute('data-state') === 'opening') menu.setAttribute('data-state', 'open'); }, Math.max(34, reveal));
   // highlight: glides for the pointer, jumps for the keyboard
   let pointer = false, shown = false, clearT = 0;
   const place = (item, glide) => { clearTimeout(clearT); glide ? hl.setAttribute('data-glide', '') : hl.removeAttribute('data-glide'); const grid = item.classList.contains('tile'); hl.style.left = grid ? '0px' : ''; hl.style.right = grid ? 'auto' : ''; hl.style.width = grid ? item.offsetWidth + 'px' : ''; hl.style.transform = `translate(${grid ? item.offsetLeft : 0}px, ${item.offsetTop}px)`; hl.style.height = item.offsetHeight + 'px'; hl.style.opacity = 1; shown = true; };
@@ -1412,12 +1490,13 @@ function closeMenu(instant) {
   openPicker && openPicker.close(true);
   btn.setAttribute('data-state', 'closed'); btn.setAttribute('aria-expanded', 'false'); document.body.removeAttribute('data-menu');
   if (instant) { menu.remove(); return; }
-  menu.setAttribute('data-state', 'closed'); setTimeout(() => menu.remove(), 110);
+  gooPlay(btn.getBoundingClientRect(), menu.getBoundingClientRect(), false);   // and it is drawn back into the button on close
+  menu.setAttribute('data-state', 'closed'); setTimeout(() => menu.remove(), 230);
   if (menu.contains(document.activeElement) || document.activeElement === document.body) btn.focus({ preventScroll: true });
 }
 document.addEventListener('pointerdown', e => {
   if (openPicker && !openPicker.floatEl.contains(e.target) && !openPicker.trigger.contains(e.target)) { openPicker.close(true); if (openMenu && openMenu.menu.contains(e.target)) return; }
-  if (openMenu && !openMenu.menu.contains(e.target) && !openMenu.btn.contains(e.target) && !(openPicker && openPicker.floatEl.contains(e.target))) closeMenu(true);
+  if (openMenu && !openMenu.menu.contains(e.target) && !openMenu.btn.contains(e.target) && !(openPicker && openPicker.floatEl.contains(e.target))) closeMenu();   // a click elsewhere closes it gently too
 });
 window.addEventListener('resize', () => closeMenu(true));
 // a radio pick keeps the menu open and just moves the selection
@@ -1434,6 +1513,10 @@ function menuItem(ctx, { label, icon, role = 'menuitem', checked, onSelect, keep
   it.addEventListener('click', () => { onSelect(it); if (!keepOpen) ctx.close(); });
   ctx.menu.append(it); return it;
 }
+
+// remember how the viewer is moving around: the focus ring shows only after keyboard use
+addEventListener('pointerdown', () => document.documentElement.setAttribute('data-pointer', ''), true);
+addEventListener('keydown', e => { if (['Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Escape', 'Home', 'End'].includes(e.key)) document.documentElement.removeAttribute('data-pointer'); }, true);
 
 /* ---------- the five menus ---------- */
 const iconColour = () => cssColor('--text-secondary') || '#666';

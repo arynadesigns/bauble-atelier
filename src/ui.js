@@ -222,6 +222,34 @@ const savedSwatches = PRESET_SWATCHES.slice();
 
 /* ---------- Arc dropdown menu (opens upward from its trigger, one highlight glides between items) ---------- */
 let openMenu = null;
+// gooey glow (after liquid-glass-interface): two white shapes, the button and the panel, merged by an SVG blur + alpha threshold
+// a soft spring like the original's open (omega 11, damping 1): settles with only a hint of overshoot
+const GOO_EASE = 'linear(0, .06 3%, .22 8%, .45 14%, .67 21%, .84 28%, .95 36%, 1.01 45%, 1.03 54%, 1.02 66%, 1.005 80%, 1)';
+const goo = (() => {
+  const NS = 'http://www.w3.org/2000/svg', svgEl = document.createElementNS(NS, 'svg');
+  svgEl.setAttribute('width', '0'); svgEl.setAttribute('height', '0'); svgEl.setAttribute('aria-hidden', 'true'); svgEl.style.position = 'absolute';
+  svgEl.innerHTML = '<defs><filter id="lgGoo" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="10" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 26 -11"/></filter></defs>';
+  document.body.append(svgEl);
+  const wrap = el('div', 'goo', { 'aria-hidden': 'true' }), a = el('div', 'goo-shape'), b = el('div', 'goo-shape'); wrap.append(a, b);
+  document.querySelector('.stage').append(wrap);
+  let ease = GOO_EASE; try { b.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 1, easing: GOO_EASE }).cancel(); } catch (e) { ease = 'cubic-bezier(.34, 1.56, .64, 1)'; }
+  return { wrap, a, b, ease };
+})();
+function gooPlay(r, m, opening) {
+  if (reducedMotion()) return 0;
+  const box = (x, rad) => ({ left: x.left + 'px', top: x.top + 'px', width: x.width + 'px', height: x.height + 'px', borderRadius: rad + 'px' });
+  Object.assign(goo.a.style, box(r, Math.min(r.height / 2, 20)));
+  const from = box(r, Math.min(r.height / 2, 20)), to = box(m, 24), dur = opening ? 760 : 340;
+  const now = parseFloat(getComputedStyle(goo.wrap).opacity) || 0;   // continue from wherever the glow is, never jump
+  goo.b.getAnimations().forEach(x => x.cancel()); goo.wrap.getAnimations().forEach(x => x.cancel());
+  goo.b.animate(opening ? [from, to] : [to, from], { duration: dur, easing: opening ? goo.ease : 'cubic-bezier(.4, 0, .7, .2)', fill: 'forwards' });
+  // the glow rises quickly, holds while the panel grows, then fades out slowly, easing off at the end
+  goo.wrap.animate(opening
+    ? [{ opacity: now }, { opacity: 1, offset: .06 }, { opacity: 1, offset: .42, easing: 'cubic-bezier(.3, 0, .2, 1)' }, { opacity: 0 }]
+    : [{ opacity: now }, { opacity: .9, offset: .25 }, { opacity: .9, offset: .6, easing: 'cubic-bezier(.3, 0, .2, 1)' }, { opacity: 0 }],
+    { duration: opening ? 1500 : 520, fill: 'forwards' });
+  return opening ? 30 : 0;
+}
 function Trigger({ icon, aria, build, label }) {
   const labelOuter = el('span', 'label'); const labelInner = el('span', 'in');
   labelOuter.append(labelInner);
@@ -254,9 +282,10 @@ function showMenu(btn, build, keyboard) {
   const left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left + r.width / 2 - w / 2));
   menu.style.left = left + 'px'; menu.style.bottom = (window.innerHeight - r.top + 6) + 'px';
   menu.style.transformOrigin = `${r.left + r.width / 2 - left}px 100%`;
-  [...menu.querySelectorAll('.item')].forEach((it, i) => it.style.setProperty('--i', i));
+  [...menu.querySelectorAll('.item, .cp-trigger')].forEach((it, i) => it.style.setProperty('--i', i));
   btn.setAttribute('data-state', 'open'); btn.setAttribute('aria-expanded', 'true');
-  requestAnimationFrame(() => requestAnimationFrame(() => menu.setAttribute('data-state', 'open')));
+  const reveal = gooPlay(r, menu.getBoundingClientRect(), true);   // the white blob grows out of the button first, then the menu appears inside it
+  setTimeout(() => { if (menu.isConnected && menu.getAttribute('data-state') === 'opening') menu.setAttribute('data-state', 'open'); }, Math.max(34, reveal));
   // highlight: glides for the pointer, jumps for the keyboard
   let pointer = false, shown = false, clearT = 0;
   const place = (item, glide) => { clearTimeout(clearT); glide ? hl.setAttribute('data-glide', '') : hl.removeAttribute('data-glide'); const grid = item.classList.contains('tile'); hl.style.left = grid ? '0px' : ''; hl.style.right = grid ? 'auto' : ''; hl.style.width = grid ? item.offsetWidth + 'px' : ''; hl.style.transform = `translate(${grid ? item.offsetLeft : 0}px, ${item.offsetTop}px)`; hl.style.height = item.offsetHeight + 'px'; hl.style.opacity = 1; shown = true; };
@@ -286,12 +315,13 @@ function closeMenu(instant) {
   openPicker && openPicker.close(true);
   btn.setAttribute('data-state', 'closed'); btn.setAttribute('aria-expanded', 'false'); document.body.removeAttribute('data-menu');
   if (instant) { menu.remove(); return; }
-  menu.setAttribute('data-state', 'closed'); setTimeout(() => menu.remove(), 110);
+  gooPlay(btn.getBoundingClientRect(), menu.getBoundingClientRect(), false);   // and it is drawn back into the button on close
+  menu.setAttribute('data-state', 'closed'); setTimeout(() => menu.remove(), 230);
   if (menu.contains(document.activeElement) || document.activeElement === document.body) btn.focus({ preventScroll: true });
 }
 document.addEventListener('pointerdown', e => {
   if (openPicker && !openPicker.floatEl.contains(e.target) && !openPicker.trigger.contains(e.target)) { openPicker.close(true); if (openMenu && openMenu.menu.contains(e.target)) return; }
-  if (openMenu && !openMenu.menu.contains(e.target) && !openMenu.btn.contains(e.target) && !(openPicker && openPicker.floatEl.contains(e.target))) closeMenu(true);
+  if (openMenu && !openMenu.menu.contains(e.target) && !openMenu.btn.contains(e.target) && !(openPicker && openPicker.floatEl.contains(e.target))) closeMenu();   // a click elsewhere closes it gently too
 });
 window.addEventListener('resize', () => closeMenu(true));
 // a radio pick keeps the menu open and just moves the selection
@@ -308,6 +338,10 @@ function menuItem(ctx, { label, icon, role = 'menuitem', checked, onSelect, keep
   it.addEventListener('click', () => { onSelect(it); if (!keepOpen) ctx.close(); });
   ctx.menu.append(it); return it;
 }
+
+// remember how the viewer is moving around: the focus ring shows only after keyboard use
+addEventListener('pointerdown', () => document.documentElement.setAttribute('data-pointer', ''), true);
+addEventListener('keydown', e => { if (['Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Escape', 'Home', 'End'].includes(e.key)) document.documentElement.removeAttribute('data-pointer'); }, true);
 
 /* ---------- the five menus ---------- */
 const iconColour = () => cssColor('--text-secondary') || '#666';
